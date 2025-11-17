@@ -2,6 +2,9 @@
 from email_assistant.agent.graphs.write_email_graph import create_email_graph
 from email_assistant.core.schemas import EmailRequest, EmailResponse, EmailState
 
+from fastmcp.client.transports import StdioTransport
+from fastmcp import Client
+
 class EmailAssistant:
     """
     AI Email Assistant for composing and sending emails.
@@ -11,7 +14,15 @@ class EmailAssistant:
     def __init__(self):
         """Initialize the email assistant with the graph workflow"""
         self.graph = create_email_graph()
-    
+
+        # Initialize MCP client once
+        transport = StdioTransport(
+            command="sh",
+            args=["./run_gmail_mcp_server_conda.sh"]
+        )
+        self.mcp_client = Client(transport)
+
+
     async def write_email(
         self,
         to: str,
@@ -66,11 +77,12 @@ class EmailAssistant:
             should_generate=should_generate
         )
         
-        # Create initial state from request
-        initial_state = EmailState(**request.model_dump())
+        # Create initial state from request and add MCP client
+        initial_state = request.model_dump()
+        initial_state["mcp"] = self.mcp_client  # Use the instance client
         
         # Run the graph workflow
-        result = await self.graph.ainvoke(initial_state.model_dump())
+        result = await self.graph.ainvoke(initial_state)
         
         # Convert result to EmailState for validation
         result_state = EmailState(**result)
@@ -157,20 +169,20 @@ if __name__ == "__main__":
         print(f"Message: {result1.message}")
         print("-" * 50)
         
-        # # Example 2: Generate draft
-        # print("\nExample 2: Generate Draft")
-        # result2 = await assistant.write_email(
-        #     to="iva97.ja@gmail.com",
-        #     subject="Project Update",
-        #     text="Inform the client that the project is 80% complete, on schedule, and we'll deliver next week. Mention the new features added.",
-        #     tone="professional",
-        #     should_generate=True
-        # )
-        # print(f"Status: {result2.status}")
-        # print(f"Message: {result2.message}")
-        # if result2.generated_body:
-        #     print(f"Generated Body:\n{result2.generated_body}")
-        # print("-" * 50)
+        # Example 2: Generate draft
+        print("\nExample 2: Generate Draft")
+        result2 = await assistant.write_email(
+            to="iva97.ja@gmail.com",
+            subject="Project Update",
+            text="Inform the client that the project is 80% complete, on schedule, and we'll deliver next week. Mention the new features added.",
+            tone="professional",
+            should_generate=True
+        )
+        print(f"Status: {result2.status}")
+        print(f"Message: {result2.message}")
+        if result2.generated_body:
+            print(f"Generated Body:\n{result2.generated_body}")
+        print("-" * 50)
 
     # Run examples
     asyncio.run(main())

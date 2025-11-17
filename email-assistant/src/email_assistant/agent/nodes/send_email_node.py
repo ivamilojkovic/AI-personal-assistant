@@ -8,33 +8,8 @@ async def send_email_node(state: EmailState) -> dict:
     try:
         body = state.generated_body or state.text
 
-        config = {
-            "mcpServers": {
-                "server_name": {
-                    "transport": "stdio",
-                    # "transport": "http",
-                    # "transport": "streamable-http",                    
-                    "url": "http://localhost:6277/mcp",
-                    # "headers": {"Authorization": "Bearer token"},
-                },
-            }
-        }
-        # client = Client(config)
-
-        from fastmcp.client.transports import StdioTransport
-
-        transport = StdioTransport(
-            command="sh",
-            args=["/Users/ivamilojkovic/Projects/ai-personal-assistant/email-assistant/run_gmail_mcp_server_conda.sh"]
-        )
-        client = Client(transport)
-
-        # client = Client("http://localhost:6277/mcp", transport="http")
-        # client = Client(transport="stdio")
-
-        #########
-        # import pdb; pdb.set_trace()
-        #########
+        # Get MCP client from state
+        client = state.mcp
 
         async with client:
             # Debug: list tools

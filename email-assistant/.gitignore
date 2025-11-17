@@ -5,10 +5,15 @@ build/
 dist/
 wheels/
 *.egg-info
+*.DS_Store
 
 # Virtual environments
 .venv
 
 # Secret files
 credentials.json
+token.json
 .env
+
+# Additional repo (mcp-gmail)
+.mcp-gmail/

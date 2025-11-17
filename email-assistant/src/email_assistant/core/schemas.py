@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr, Field
-from typing import Optional, Literal
+from typing import Optional, Literal, Any
 
 
 class EmailRequest(BaseModel):
@@ -37,6 +37,9 @@ class EmailState(BaseModel):
     error: Optional[str] = None
     cc: Optional[str] = None
     bcc: Optional[str] = None
+
+    # MCP client resource
+    mcp: Optional[Any] = None
 
     class Config:
         arbitrary_types_allowed = True
