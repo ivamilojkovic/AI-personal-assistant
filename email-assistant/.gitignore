@@ -9,5 +9,6 @@ wheels/
 # Virtual environments
 .venv
 
-# Config files
-src/email-assistant/config/*.json
+# Secret files
+credentials.json
+.env
