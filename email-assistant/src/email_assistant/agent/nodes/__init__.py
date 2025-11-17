@@ -2,3 +2,4 @@ from email_assistant.agent.nodes.direct_send_node import direct_send_node
 from email_assistant.agent.nodes.generate_draft_node import generate_draft_node
 from email_assistant.agent.nodes.router_node import router_node
 from email_assistant.agent.nodes.send_email_node import send_email_node 
+from email_assistant.agent.nodes.send_draft_node import send_draft_node

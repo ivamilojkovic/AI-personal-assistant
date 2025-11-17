@@ -3,7 +3,8 @@ from email_assistant.agent.nodes import (
     router_node,
     generate_draft_node,
     direct_send_node,
-    send_email_node
+    send_email_node,
+    send_draft_node,
 )
 from email_assistant.core.schemas import EmailState
 
@@ -20,6 +21,7 @@ def create_email_graph():
     
     # Add nodes
     workflow.add_node("generate_draft", generate_draft_node)
+    workflow.add_node("send_draft", send_draft_node)
     workflow.add_node("direct_send", direct_send_node)
     workflow.add_node("send_email", send_email_node)
     
@@ -33,7 +35,8 @@ def create_email_graph():
     )
     
     # Generate draft STOPS here (no sending)
-    workflow.add_edge("generate_draft", END)
+    workflow.add_edge("generate_draft", "send_draft")
+    workflow.add_edge("send_draft", END)
     
     # Direct send continues to send_email
     workflow.add_edge("direct_send", "send_email")
