@@ -37,7 +37,6 @@ class EmailAssistant:
         )
         self.mcp_client = Client(transport)
 
-
     async def write_email(
         self,
         to: str,

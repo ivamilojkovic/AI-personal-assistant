@@ -31,8 +31,8 @@ async def fetch_email_ids_node(state: EmailClassificationState) -> dict:
 
         # Call the search_emails tool
         async with client:
-            result = await client.call_tool("search_emails", {
-                "label" : "INBOX",
+            # result = await client.call_tool("search_emails", {
+            result = await client.call_tool("search_unlabeled_emails", {
                 "after_date": after_date or None,
                 # "before_date": before_date or None,
                 "max_results": state.max_results or 100

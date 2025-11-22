@@ -1,5 +1,5 @@
 from langgraph.graph import StateGraph, END
-from email_assistant.agent.nodes import (
+from email_assistant.agent.nodes.reply_nodes import (
     router_node,
     generate_draft_node,
     direct_send_node,
