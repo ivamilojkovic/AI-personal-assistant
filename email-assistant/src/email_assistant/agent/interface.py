@@ -18,6 +18,16 @@ from typing import List
 from collections import Counter
 from datetime import timedelta
 
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
+from email_assistant.core.logger import Logger
+logger = Logger.get_logger(__name__)
+
+MCP_SERVER_SCRIPT = os.getenv("PATH_GMAIL_MCP_SERVER_SCRIPT", "")
+
 class EmailAssistant:
     """
     AI Email Assistant for:
@@ -31,11 +41,32 @@ class EmailAssistant:
         self.graph_classifier = create_cls_email_graph()
 
         # Initialize MCP client once
-        transport = StdioTransport(
+        self.transport = StdioTransport(
             command="sh",
-            args=["./run_gmail_mcp_server_conda.sh"]
+            args=[MCP_SERVER_SCRIPT]
         )
-        self.mcp_client = Client(transport)
+        logger.info("EmailAssistant initialized (MCP will connect per request)")
+
+    async def _get_mcp_client(self) -> Client:
+        """
+        Create and connect a new MCP client for this request.
+        
+        Returns:
+            Connected MCP Client
+        """
+        logger.info("Creating new MCP client session...")
+        transport = self.transport
+        client = Client(transport)
+        
+        # Connect the client
+        try:
+            await client.__aenter__()
+            logger.info("MCP client connected successfully")
+            return client
+        except Exception as e:
+            logger.error(f"Failed to connect MCP client: {e}")
+            raise
+
 
     async def write_email(
         self,
@@ -82,41 +113,64 @@ class EmailAssistant:
                 should_generate=True
             )
         """
-        # Validate and create request
-        request = EmailRequest(
-            to=to,
-            subject=subject,
-            text=text,
-            tone=tone,
-            should_generate=should_generate
-        )
+        # Create MCP client for this request
+        mcp_client = await self._get_mcp_client()
         
-        # Create initial state from request and add MCP client
-        initial_state = request.model_dump()
-        initial_state["mcp"] = self.mcp_client  # Use the instance client
-        
-        # Run the graph workflow
-        result = await self.graph_writer.ainvoke(initial_state)
-        
-        # Convert result to EmailState for validation
-        result_state = EmailState(**result)
-        
-        # Create response
-        if result_state.status == "sent_successfully":
-            message = f"Email sent successfully to {result_state.to}"
-        elif result_state.status == "draft_generated":
-            message = "Email draft generated successfully"
-        elif result_state.status == "sent_directly":
-            message = f"Email sent directly to {result_state.to}"
-        else:
-            message = f"Error: {result_state.error}"
-        
-        return EmailResponse(
-            status=result_state.status,
-            message=message,
-            generated_body=result_state.generated_body,
-            error=result_state.error
-        )
+        try:
+            # Validate and create request
+            request = EmailRequest(
+                to=to,
+                subject=subject,
+                text=text,
+                tone=tone,
+                should_generate=should_generate
+            )
+            
+            # Create initial state from request and add MCP client
+            initial_state = request.model_dump()
+            initial_state["mcp"] = mcp_client
+            
+            logger.info(f"Invoking email writer graph for: {to}")
+            
+            # Run the graph workflow
+            result = await self.graph_writer.ainvoke(initial_state)
+            
+            # Convert result to EmailState for validation
+            result_state = EmailState(**result)
+            
+            logger.info(f"Email writer result: status={result_state.status}")
+            
+            # Create response
+            if result_state.status == "sent_successfully":
+                message = f"Email sent successfully to {result_state.to}"
+            elif result_state.status == "draft_generated":
+                message = "Email draft generated successfully"
+            elif result_state.status == "sent_directly":
+                message = f"Email sent directly to {result_state.to}"
+            else:
+                message = f"Error: {result_state.error}"
+            
+            return EmailResponse(
+                status=result_state.status,
+                message=message,
+                generated_body=result_state.generated_body,
+                error=result_state.error
+            )
+            
+        except Exception as e:
+            logger.error(f"Error in write_email: {e}", exc_info=True)
+            return EmailResponse(
+                status="error",
+                message=f"Failed to process email: {str(e)}",
+                error=str(e)
+            )
+        finally:
+            # Always close the MCP client
+            try:
+                await mcp_client.__aexit__(None, None, None)
+                logger.info("MCP client disconnected")
+            except Exception as e:
+                logger.warning(f"Error closing MCP client: {e}")
  
     async def classify_emails_batch(
         self,
@@ -153,40 +207,62 @@ class EmailAssistant:
             print(f"Classified {response.total_classified} emails")
         """
         
-        # Create initial state for batch mode
-        initial_state = {
-            "mode": "batch",
-            "after_date": after_date,
-            # "before_date": before_date,
-            "categories": categories,
-            "max_results": max_results,
-            "mcp": self.mcp_client
-        }
+        # Create MCP client for this request
+        mcp_client = await self._get_mcp_client()
         
-        # Run the graph workflow in batch mode
-        result = await self.graph_classifier.ainvoke(initial_state)
-        
-        # Convert result to state for validation
-        result_state = EmailClassificationState(**result)
-        
-        # Create response message
-        if result_state.status in ["classification_complete", "labels_applied"]:
-            message = f"Classified {result_state.total_classified} emails in parallel"
+        try:
+            # Create initial state for batch mode
+            initial_state = {
+                "mode": "batch",
+                "after_date": after_date,
+                "categories": categories,
+                "max_results": max_results,
+                "mcp": mcp_client
+            }
             
-            if result_state.labeled_count:
-                message += f", applied {result_state.labeled_count} labels"
-        else:
-            message = f"Classification failed: {result_state.error}"
-        
-        return ClassificationResponse(
-            status=result_state.status,
-            message=message,
-            total_emails=result_state.total_emails,
-            total_classified=result_state.total_classified,
-            classification_results=result_state.classification_results,
-            labeled_count=result_state.labeled_count,
-            error=result_state.error
-        )
+            logger.info(f"Invoking email classifier graph: {len(categories)} categories, max {max_results} emails")
+            
+            # Run the graph workflow in batch mode
+            result = await self.graph_classifier.ainvoke(initial_state)
+            
+            # Convert result to state for validation
+            result_state = EmailClassificationState(**result)
+            
+            logger.info(f"Classification result: status={result_state.status}, classified={result_state.total_classified}")
+            
+            # Create response message
+            if result_state.status in ["classification_complete", "labels_applied"]:
+                message = f"Classified {result_state.total_classified} emails in parallel"
+                
+                if result_state.labeled_count:
+                    message += f", applied {result_state.labeled_count} labels"
+            else:
+                message = f"Classification failed: {result_state.error}"
+            
+            return ClassificationResponse(
+                status=result_state.status,
+                message=message,
+                total_emails=result_state.total_emails,
+                total_classified=result_state.total_classified,
+                classification_results=result_state.classification_results,
+                labeled_count=result_state.labeled_count,
+                error=result_state.error
+            )
+            
+        except Exception as e:
+            logger.error(f"Error in classify_emails_batch: {e}", exc_info=True)
+            return ClassificationResponse(
+                status="error",
+                message=f"Failed to classify emails: {str(e)}",
+                error=str(e)
+            )
+        finally:
+            # Always close the MCP client
+            try:
+                await mcp_client.__aexit__(None, None, None)
+                logger.info("MCP client disconnected")
+            except Exception as e:
+                logger.warning(f"Error closing MCP client: {e}")
     
 # Example usage and testing
 if __name__ == "__main__":
