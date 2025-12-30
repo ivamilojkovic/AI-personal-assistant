@@ -1,42 +1,152 @@
-from langchain_openai import ChatOpenAI
-from orchestrator.config import OPENAI_API_KEY
+import json
+from typing import Dict, Any, Optional
 
-llm = ChatOpenAI(model="gpt-4.1-mini", api_key=OPENAI_API_KEY, temperature=0.7)
+from orchestrator.a2a.models import (
+    IntentType, 
+    ParsedIntent
+)
+from orchestrator.config import Config
+from orchestrator.core.logger import Logger
+from orchestrator.agent.prompts import SYSTEM_PROMPT
 
-def detect_intent(user_input: str) -> str:
-    prompt = f"""
-    Determine user intent: send_email, classify_emails, unknown.
+from langchain.chat_models import init_chat_model
 
-    User: {user_input}
-    Respond with only the intent word. 
+logger = Logger.get_logger(__name__)
+
+
+class IntentParser:
     """
-    out = llm.invoke(prompt).content.strip()
-    return out
-
-def extract_email_payload(user_input: str) -> dict:
-    prompt = f"""
-    Extract as JSON:
-    {{
-      "recipient": "...",
-      "subject": "...",
-      "content": "...",
-      "send_directly": true/false
-    }}
-
-    User: {user_input}
+    Parse user intents using Claude LLM.
     """
+    SYSTEM_PROMPT = SYSTEM_PROMPT
 
-    return llm.invoke(prompt).json()
-
-def extract_date_range(user_input: str) -> dict:
-    prompt = f"""
-    Extract as JSON:
-    {{
-      "start_date": "...",
-      "end_date": "..."
-    }}
-
-    User: {user_input}
-    """
-
-    return llm.invoke(prompt).json()
+    def __init__(self, api_key: Optional[str] = None):
+        """
+        Initialize intent parser.
+        
+        Args:
+            api_key:OPEN AI key (uses Config.OPENAI_API_KEY if not provided)
+        """
+        self.api_key = api_key or Config.OPENAI_API_KEY
+        if not self.api_key:
+            raise ValueError("OPENAI_API_KEY is required")
+        
+        self.client = init_chat_model(api_key=self.api_key)
+        logger.info("IntentParser initialized")
+    
+    async def parse(self, user_message: str, context: Optional[Dict[str, Any]] = None) -> ParsedIntent:
+        """
+        Parse user message to extract intent and parameters.
+        
+        Args:
+            user_message: User's natural language message
+            context: Optional conversation context
+            
+        Returns:
+            ParsedIntent object with intent, parameters, and missing info
+        """
+        logger.info(f"Parsing user message: {user_message[:100]}...")
+        
+        # Build prompt with context if available
+        prompt = f"User message: {user_message}"
+        if context:
+            prompt = f"Previous context: {json.dumps(context)}\n\n{prompt}"
+        
+        try:
+            # Call LLM API
+            response = await self.client.messages.create(
+                model=Config.LLM_MODEL,
+                max_tokens=Config.LLM_MAX_TOKENS,
+                temperature=Config.LLM_TEMPERATURE,
+                system=self.SYSTEM_PROMPT,
+                messages=[
+                    {"role": "user", "content": prompt}
+                ]
+            )
+            
+            # Extract response text
+            response_text = response.content[0].text.strip()
+            logger.info(f"LLM response: {response_text}")
+            
+            # Parse JSON response
+            try:
+                result_dict = json.loads(response_text)
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse LLM response as JSON: {e}")
+                # Try to extract JSON from markdown code blocks
+                if "```json" in response_text:
+                    json_start = response_text.find("```json") + 7
+                    json_end = response_text.find("```", json_start)
+                    response_text = response_text[json_start:json_end].strip()
+                    result_dict = json.loads(response_text)
+                else:
+                    raise
+            
+            # Convert to ParsedIntent
+            parsed_intent = ParsedIntent(**result_dict)
+            
+            logger.info(f"Parsed intent: {parsed_intent.intent}, confidence: {parsed_intent.confidence}")
+            if parsed_intent.missing_parameters:
+                logger.info(f"Missing parameters: {parsed_intent.missing_parameters}")
+            
+            return parsed_intent
+            
+        except Exception as e:
+            logger.error(f"Error parsing intent: {e}", exc_info=True)
+            # Return unknown intent on error
+            return ParsedIntent(
+                intent=IntentType.UNKNOWN,
+                confidence=0.0,
+                clarification_needed=True,
+                clarification_message=f"I encountered an error understanding your request: {str(e)}"
+            )
+    
+    def validate_parameters(self, intent: IntentType, parameters: Dict[str, Any]) -> tuple[bool, list[str]]:
+        """
+        Validate that all required parameters are present for the intent.
+        
+        Args:
+            intent: Parsed intent type
+            parameters: Extracted parameters
+            
+        Returns:
+            Tuple of (is_valid, missing_parameters)
+        """
+        missing = []
+        
+        # Email intents
+        if intent == IntentType.WRITE_EMAIL:
+            if not parameters.get('to'):
+                missing.append('to')
+        
+        elif intent == IntentType.CLASSIFY_EMAILS:
+            if not parameters.get('categories'):
+                missing.append('categories')
+        
+        # Booking intents
+        elif intent == IntentType.CREATE_BOOKING:
+            if not parameters.get('service'):
+                missing.append('service')
+            if not parameters.get('date'):
+                missing.append('date')
+            if not parameters.get('time'):
+                missing.append('time')
+        
+        elif intent == IntentType.CANCEL_BOOKING:
+            if not parameters.get('booking_id'):
+                missing.append('booking_id')
+        
+        elif intent == IntentType.UPDATE_BOOKING:
+            if not parameters.get('booking_id'):
+                missing.append('booking_id')
+        
+        elif intent == IntentType.CHECK_AVAILABILITY:
+            if not parameters.get('service'):
+                missing.append('service')
+            if not parameters.get('date'):
+                missing.append('date')
+        
+        # LIST_BOOKINGS has no required parameters (all optional)
+        
+        is_valid = len(missing) == 0
+        return is_valid, missing

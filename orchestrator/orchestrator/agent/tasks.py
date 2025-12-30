@@ -1,7 +1,6 @@
 from orchestrator.a2a.models import A2ARequest
 from orchestrator.a2a.client import send_a2a
 from .intent_parser import extract_email_payload, extract_date_range
-import asyncio
 
 async def task_send_email(state):
     payload = extract_email_payload(state["user_input"])

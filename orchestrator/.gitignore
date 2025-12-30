@@ -1,0 +1,4 @@
+/config.py
+*.egg-info
+.env
+__pycache__/
