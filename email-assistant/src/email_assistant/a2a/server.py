@@ -100,11 +100,13 @@ async def get_agent_card_endpoint(request: Request):
     agent_card = get_agent_card(request)
     return JSONResponse(content=agent_card.model_dump())
 
+app.mount("/", server.build())
+
 if __name__ == "__main__":
     logger.info("Starting Email Assistant A2A Server...")
     uvicorn.run(
-        server.build(),
+        app,
         host="127.0.0.1",
-        port=8000,
+        port=9001,
         log_level="info"
     )

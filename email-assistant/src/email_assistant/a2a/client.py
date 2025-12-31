@@ -17,7 +17,7 @@ from dotenv import load_dotenv
 import os
 
 load_dotenv()
-BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")
+BASE_URL = os.getenv("BASE_URL", "http://localhost:9001")
 
 async def test_write_email_no_auth():
     """Test write_email skill without authentication"""
