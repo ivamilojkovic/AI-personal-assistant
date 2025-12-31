@@ -13,7 +13,7 @@ async def test_write_email():
     print("TEST 1: Write Email via Orchestrator")
     print("="*70)
     
-    async with httpx.AsyncClient() as httpx_client:
+    async with httpx.AsyncClient(timeout=120.0) as httpx_client:
         resolver = A2ACardResolver(
             httpx_client=httpx_client,
             base_url=os.getenv("ORCHESTRATOR_BASE_URL", "http://localhost:9000"),
@@ -59,13 +59,73 @@ async def test_write_email():
             print(f"\nFull response: {result}")
 
 
+async def test_draft_email():
+    """Simple test for AI-generated draft email"""
+    print("\n" + "="*70)
+    print("TEST: Write Draft Email with AI Generation")
+    print("="*70)
+    
+    async with httpx.AsyncClient(timeout=120.0) as httpx_client:
+        # Connect to orchestrator
+        resolver = A2ACardResolver(
+            httpx_client=httpx_client,
+            base_url=os.getenv("ORCHESTRATOR_BASE_URL", "http://localhost:9000")
+        )
+        
+        agent_card = await resolver.get_agent_card()
+        print(f"✓ Connected to: {agent_card.name}")
+        
+        client = A2AClient(
+            agent_card=agent_card,
+            httpx_client=httpx_client
+        )
+        
+        # Test 1: Draft email with clear parameters
+        print("\n--- Test 1: Professional project update email ---")
+        user_request = (
+            "Write a professional email to iva97.ja@gmail.com with subject 'Project Update'. "
+            "Tell them the project is 80% complete and on schedule for delivery next week."
+        )
+        print(f"Request: {user_request}")
+        
+        request = SendMessageRequest(
+            id=str(uuid4()),
+            params=MessageSendParams(
+                message={
+                    'role': 'user',
+                    'parts': [{'kind': 'text', 'text': user_request}],
+                    'messageId': uuid4().hex,
+                },
+                metadata={
+                    'skill_id': 'orchestrate',
+                    'input_params': {'request': user_request}
+                }
+            )
+        )
+        
+        print("\nSending to orchestrator (this will use AI to generate content)...")
+        response = await client.send_message(request)
+        
+        # Extract and display response
+        result = response.model_dump()
+        if 'result' in result and 'events' in result['result']:
+            for event in result['result']['events']:
+                if 'data' in event and 'text' in event['data']:
+                    print(f"\n✓ Response:")
+                    print("="*70)
+                    print(event['data']['text'])
+                    print("="*70)
+        else:
+            print(f"\nFull response: {result}")
+
+
 async def test_classify_emails():
     """Test 2: Classify emails"""
     print("\n" + "="*70)
     print("TEST 2: Classify Emails via Orchestrator")
     print("="*70)
     
-    async with httpx.AsyncClient() as httpx_client:
+    async with httpx.AsyncClient(timeout=120.0) as httpx_client:
         resolver = A2ACardResolver(
             httpx_client=httpx_client,
             base_url=os.getenv("ORCHESTRATOR_BASE_URL", "http://localhost:9000"),
@@ -115,7 +175,7 @@ async def test_missing_params():
     print("TEST 3: Missing Parameters (Expect Clarification)")
     print("="*70)
     
-    async with httpx.AsyncClient() as httpx_client:
+    async with httpx.AsyncClient(timeout=120.0) as httpx_client:
         resolver = A2ACardResolver(
             httpx_client=httpx_client,
             base_url=os.getenv("ORCHESTRATOR_BASE_URL", "http://localhost:9000"),
@@ -171,6 +231,7 @@ async def main():
     
     tests = [
         ("Write Email", test_write_email),
+        ("Draft Email", test_draft_email),
         ("Classify Emails", test_classify_emails),
         ("Missing Parameters", test_missing_params),
     ]
