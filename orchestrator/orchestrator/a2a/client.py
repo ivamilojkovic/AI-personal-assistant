@@ -11,7 +11,7 @@ from orchestrator.agent.agent_registry import AgentConfig
 logger = Logger.get_logger(__name__)
 
 
-class A2AClient:
+class GeneralA2AClient:
     """
     Generic client for communicating with any A2A agent.
     
@@ -30,7 +30,7 @@ class A2AClient:
         self._client: Optional[A2AClient] = None
         self._httpx_client: Optional[httpx.AsyncClient] = None
         
-        logger.info(f"A2AClient initialized for {agent_config.name}")
+        logger.info(f"GeneralA2AClient initialized for {agent_config.name}")
         logger.info(f"  Base URL: {agent_config.base_url}")
         logger.info(f"  Capabilities: {agent_config.capabilities}")
     
@@ -73,7 +73,7 @@ class A2AClient:
                 logger.info("Fetching public agent card...")
                 agent_card = await resolver.get_agent_card()
             
-            logger.info(f"Successfully fetched agent card: {agent_card.agent.name}")
+            logger.info(f"Successfully fetched agent card: {agent_card.name}")
             logger.info(f"Available skills: {[skill.id for skill in agent_card.skills]}")
             
             # Initialize A2A client
@@ -184,7 +184,7 @@ class AgentClientFactory:
     """
     
     @staticmethod
-    def create_client(agent_config: AgentConfig) -> A2AClient:
+    def create_client(agent_config: AgentConfig) -> GeneralA2AClient:
         """
         Create a client for the specified agent.
         
@@ -194,4 +194,4 @@ class AgentClientFactory:
         Returns:
             A2AClient instance
         """
-        return A2AClient(agent_config)
+        return GeneralA2AClient(agent_config)

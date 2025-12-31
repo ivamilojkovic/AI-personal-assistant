@@ -9,7 +9,9 @@ from orchestrator.config import Config
 from orchestrator.core.logger import Logger
 from orchestrator.agent.prompts import SYSTEM_PROMPT
 
-from langchain.chat_models import init_chat_model
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import SystemMessage, HumanMessage
+
 
 logger = Logger.get_logger(__name__)
 
@@ -31,7 +33,12 @@ class IntentParser:
         if not self.api_key:
             raise ValueError("OPENAI_API_KEY is required")
         
-        self.client = init_chat_model(api_key=self.api_key)
+        self.client = ChatOpenAI(
+            model=Config.LLM_MODEL, 
+            api_key=self.api_key,
+            temperature=Config.LLM_TEMPERATURE,
+            max_tokens=Config.LLM_MAX_TOKENS
+        )
         logger.info("IntentParser initialized")
     
     async def parse(self, user_message: str, context: Optional[Dict[str, Any]] = None) -> ParsedIntent:
@@ -51,21 +58,18 @@ class IntentParser:
         prompt = f"User message: {user_message}"
         if context:
             prompt = f"Previous context: {json.dumps(context)}\n\n{prompt}"
+
+        messages = [
+            SystemMessage(content=self.SYSTEM_PROMPT),
+            HumanMessage(content=prompt)
+        ]
         
         try:
             # Call LLM API
-            response = await self.client.messages.create(
-                model=Config.LLM_MODEL,
-                max_tokens=Config.LLM_MAX_TOKENS,
-                temperature=Config.LLM_TEMPERATURE,
-                system=self.SYSTEM_PROMPT,
-                messages=[
-                    {"role": "user", "content": prompt}
-                ]
-            )
+            response = await self.client.ainvoke(messages)
             
             # Extract response text
-            response_text = response.content[0].text.strip()
+            response_text = response.content
             logger.info(f"LLM response: {response_text}")
             
             # Parse JSON response

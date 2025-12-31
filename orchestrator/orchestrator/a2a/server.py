@@ -21,7 +21,6 @@ app = FastAPI(
     version=Config.ORCHESTRATOR_VERSION
 )
 
-
 def is_authenticated(request: Request) -> bool:
     """
     Check if the request is authenticated.
@@ -72,7 +71,6 @@ server = A2AStarletteApplication(
     extended_agent_card=extended_agent_card
 )
 
-
 # Health check endpoint
 @app.get("/health")
 async def health_check():
@@ -116,6 +114,8 @@ async def get_agent_card_endpoint(request: Request):
     agent_card = get_agent_card(request)
     return JSONResponse(content=agent_card.model_dump())
 
+app.mount("/", server.build())
+
 
 def start_server():
     """Start the A2A server"""
@@ -136,7 +136,7 @@ def start_server():
         return
     
     uvicorn.run(
-        server.build(),
+        app,
         host=Config.HOST,
         port=Config.PORT,
         log_level="info"
