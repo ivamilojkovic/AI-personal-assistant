@@ -165,7 +165,7 @@ function App() {
               response: assistantMessage,
               emailDetails,
               skillName,
-              error: isError,          // ✅ THIS FIXES THE ICON
+              error: isError, 
               isLoading: false
             }
           : conv
@@ -182,7 +182,7 @@ function App() {
               response: assistantMessage,
               emailDetails,
               skillName,
-              error: isError,          // ✅ THIS FIXES THE ICON
+              error: isError,
               isLoading: false
             }
           : conv
@@ -322,7 +322,6 @@ function App() {
                           </div>
                         ) : (
                           <div className="text-response">
-                            <div className="response-icon">🤖</div>
                             <div className="response-text">{conv.response}</div>
                           </div>
                         )}
