@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  ui:
+    build: .
+    ports:
+      - "3000:80"
+    environment:
+      # Set orchestrator URL - change this to your orchestrator's address
+      - VITE_ORCHESTRATOR_URL=http://localhost:9000
+    restart: unless-stopped
+    networks:
+      - assistant-network
+
+networks:
+  assistant-network:
+    driver: bridge
