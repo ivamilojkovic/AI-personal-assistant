@@ -83,12 +83,13 @@ class OrchestratorExecutor(AgentExecutor):
             logger.info(f"Orchestration result: {result.success}")
             logger.info(f"Result message: {result.message}")
             
-            # Format response message
-            response_message = self._format_response(result)
-            
             # Send response
-            await event_queue.enqueue_event(new_agent_text_message(response_message))
-            
+            formatted = self.format_response(result)
+
+            await event_queue.enqueue_event(
+                new_agent_text_message(formatted["text"])
+            )
+
             logger.info("Response sent successfully")
             
             logger.info("=" * 70)
@@ -96,47 +97,39 @@ class OrchestratorExecutor(AgentExecutor):
             logger.info("=" * 70)
             
         except Exception as e:
-            error_msg = f"Error during orchestration: {str(e)}"
+            error_msg = (
+                "❌ Error during orchestration\n\n"
+                f"**Error:** {str(e)}"
+            )
             logger.error(error_msg, exc_info=True)
             await event_queue.enqueue_event(new_agent_text_message(error_msg))
-    
-    def _format_response(self, result) -> str:
-        """
-        Format orchestration result into response message.
-        
-        Args:
-            result: OrchestrationResult object
-            
-        Returns:
-            Formatted response string
-        """
+
+    def _format_response_text(self, result) -> str:
         if result.success:
             response = f"✅ {result.message}\n\n"
-            
-            # Add agent response details if available
+
             if result.agent_response:
                 response += "**Details:**\n"
-                
-                # Try to extract meaningful info from agent response
-                agent_resp = result.agent_response
-                
-                # Check for result in various possible locations
-                if 'result' in agent_resp:
-                    result_data = agent_resp['result']
-                    if isinstance(result_data, dict):
-                        if 'events' in result_data:
-                            for event in result_data['events']:
-                                if 'data' in event and 'text' in event['data']:
-                                    response += f"{event['data']['text']}\n"
-        
+                result_data = result.agent_response.get("result", {})
+                for part in result_data.get("parts", []):
+                    if part.get("kind") == "text":
+                        response += f"{part['text']}\n"
         else:
             response = f"❌ {result.message}"
-            
             if result.error:
                 response += f"\n\n**Error:** {result.error}"
-        
+
         return response
-    
+
+    def format_response(self, result) -> dict:
+        return {
+            "success": result.success,
+            "message": result.message,
+            "error": result.error,
+            "text": self._format_response_text(result)
+        }
+
+
     async def cancel(
         self,
         context: RequestContext,
