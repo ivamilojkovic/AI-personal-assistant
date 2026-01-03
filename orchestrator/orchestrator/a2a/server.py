@@ -6,6 +6,7 @@ from a2a.server.tasks import InMemoryTaskStore
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 
 from orchestrator.a2a.executor import OrchestratorExecutor
 from orchestrator.a2a.cards import public_agent_card, extended_agent_card
@@ -19,6 +20,17 @@ app = FastAPI(
     title="Orchestrator A2A Server",
     description="A2A protocol server for email orchestration",
     version=Config.ORCHESTRATOR_VERSION
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",  # Local development
+        "https://ui-domain.com",  # Production
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 def is_authenticated(request: Request) -> bool:
