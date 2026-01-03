@@ -72,7 +72,7 @@ class EmailAssistant:
         self,
         to: str,
         subject: str,
-        text: str,
+        text: str = "",
         tone: str = "professional",
         should_generate: bool = False
     ) -> EmailResponse:
@@ -117,6 +117,15 @@ class EmailAssistant:
         mcp_client = await self._get_mcp_client()
         
         try:
+            # Generate subject if missing
+            if not subject:
+                if text:
+                    # Use first few words of text as subject
+                    words = text.split()[:5]
+                    subject = " ".join(words).capitalize()
+                else:
+                    subject = "No Subject"
+                    
             # Validate and create request
             request = EmailRequest(
                 to=to,
