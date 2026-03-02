@@ -295,7 +295,7 @@ if __name__ == "__main__":
         # # Example 1: Direct send (no generation)
         # print("Example 1: Direct Send")
         # result1 = await assistant.write_email(
-        #     to="iva97.ja@gmail.com",
+        #     to="client@gmail.com",
         #     subject="Meeting Tomorrow",
         #     text="Hi, just confirming our meeting tomorrow at 2 PM. See you then!",
         #     should_generate=False
@@ -307,7 +307,7 @@ if __name__ == "__main__":
         # # Example 2: Generate draft
         # print("\nExample 2: Generate Draft")
         # result2 = await assistant.write_email(
-        #     to="iva97.ja@gmail.com",
+        #     to="client@gmail.com",
         #     subject="Project Update",
         #     text="Inform the client that the project is 80% complete, on schedule, and we'll deliver next week. Mention the new features added.",
         #     tone="professional",

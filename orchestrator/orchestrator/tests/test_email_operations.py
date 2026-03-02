@@ -28,7 +28,7 @@ async def test_write_email():
         )
         
         # Test writing an email
-        user_request = "Send an email to iva97.ja@gmail.com with subject 'Test' saying hello"
+        user_request = "Send an email to client@gmail.com with subject 'Test' saying hello"
         print(f"\nRequest: {user_request}")
         
         request = SendMessageRequest(
@@ -83,7 +83,7 @@ async def test_draft_email():
         # Test 1: Draft email with clear parameters
         print("\n--- Test 1: Professional project update email ---")
         user_request = (
-            "Write a professional email to iva97.ja@gmail.com with subject 'Project Update'. "
+            "Write a professional email to client@gmail.com with subject 'Project Update'. "
             "Tell them the project is 80% complete and on schedule for delivery next week."
         )
         print(f"Request: {user_request}")

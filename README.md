@@ -1,3 +1,17 @@
+<div align="center">
+  <h1>AI Personal Assistant</h1>
+  <p>A modular AI assistant that manages your emails, bookings, and more — using natural language.</p>
+  <p>
+    <img src="https://img.shields.io/badge/Python-3.13+-3776AB?style=for-the-badge&logo=python&logoColor=white"/>
+    <img src="https://img.shields.io/badge/Status-Active-00C851?style=for-the-badge"/>
+  </p>
+  <p>
+    <img src="https://img.shields.io/badge/Email_Agent-✅_Ready-00C851?style=flat-square"/>
+    <img src="https://img.shields.io/badge/Booking_Agent-🚧_Coming_Soon-FFA500?style=flat-square"/>
+    <img src="https://img.shields.io/badge/Calendar_Agent-📋_Planned-lightgrey?style=flat-square"/>
+  </p>
+</div>
+
 <!-- TABLE OF CONTENTS -->
 <details>
   <summary>Table of Contents</summary>
@@ -17,14 +31,12 @@
         <li><a href="#installation">Installation</a></li>
       </ul>
     </li>
-    <li><a href="#usage">Usage</a></li>
-    <li><a href="#acknowledgments">Acknowledgments</a></li>
   </ol>
 </details>
 
 ## Overview
 
-A modular AI personal assistant system that uses natural language to manage your emails, bookings, and more. Built with cutting-edge agent orchestration technologies including Model Context Protocol (MCP), Agent-to-Agent (A2A) protocol, and LangGraph workflows. The AI Personal Assistant coordinates specialized AI assistants to help you:
+A modular AI personal assistant system that uses natural language to manage your emails, bookings, and more. Built with agent orchestration technologies including Model Context Protocol (MCP), Agent-to-Agent (A2A) protocol, and LangGraph workflows. The AI Personal Assistant coordinates specialized AI assistants to help you:
 
   * Email Management - Draft, send, and classify emails with AI
   * Booking Management (coming soon) - Manage accommodations and reservations
@@ -54,7 +66,11 @@ User: Receives AI-generated email draft ✅
 ### Architecture Layers
 
 #### Layer 1: User Interface
-The entry point where users express their needs in natural language. No special syntax or commands required—just natural conversation like "Write an email to client@example.com about the project update."
+The entry point where users express their needs in natural language. No special syntax or commands required, just natural conversation like "Write an email to client@example.com about the project update." 
+<div align="center">
+  <img src="./images/ui_landing_page.png" alt="AI Personal Assistant UI" width="60%"/>
+  <br/><br/>
+</div>
 
 #### Layer 2: Orchestrator (Coordination Layer)
 The intelligent coordination hub that processes user requests and delegates to the appropriate specialist. Built using LangGraph for stateful workflow orchestration.
@@ -64,7 +80,7 @@ Components:
     Understands natural language using OpenAI GPT-4
     Extracts structured parameters from unstructured text
     Determines confidence level for the interpretation
-    Example: "Write an email to alice@example.com" → {intent: "write_email", to: "alice@example.com"}
+    Example: "Write an email to client@example.com" → {intent: "write_email", to: "client@example.com"}
 
 * Agent Router
     Maps intents to the appropriate specialized agent
@@ -204,54 +220,24 @@ Domain-specific AI agents that perform actual work using their specialized knowl
 
 ### Installation
 
-_Below is an example of how you can instruct your audience on installing and setting up your app. This template doesn't rely on any external dependencies or services._
+### Configuration
+Copy the example environment file and fill in your credentials:
+```
+# .env.example
 
-1. Get a free API Key at [https://example.com](https://example.com)
-2. Clone the repo
-   ```sh
-   git clone https://github.com/github_username/repo_name.git
-   ```
-3. Install NPM packages
-   ```sh
-   npm install
-   ```
-4. Enter your API in `config.js`
-   ```js
-   const API_KEY = 'ENTER YOUR API';
-   ```
-5. Change git remote url to avoid accidental pushes to base project
-   ```sh
-   git remote set-url origin github_username/repo_name
-   git remote -v # confirm the changes
-   ```
+# OpenAI
+OPENAI_API_KEY=your_openai_api_key_here
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
+# Gmail / MCP
+GMAIL_CLIENT_ID=your_gmail_client_id
+GMAIL_CLIENT_SECRET=your_gmail_client_secret
+GMAIL_REFRESH_TOKEN=your_gmail_refresh_token
 
-
-
-<!-- USAGE EXAMPLES -->
-## Usage
-
-Use this space to show useful examples of how a project can be used. Additional screenshots, code examples and demos work well in this space. You may also link to more resources.
-
-_For more examples, please refer to the [Documentation](https://example.com)_
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-
-<!-- ACKNOWLEDGMENTS -->
-## Acknowledgments
-
-Use this space to list resources you find helpful and would like to give credit to. I've included a few of my favorites to kick things off!
-
-* [Choose an Open Source License](https://choosealicense.com)
-* [GitHub Emoji Cheat Sheet](https://www.webpagefx.com/tools/emoji-cheat-sheet)
-* [Malven's Flexbox Cheatsheet](https://flexbox.malven.co/)
-* [Malven's Grid Cheatsheet](https://grid.malven.co/)
-* [Img Shields](https://shields.io)
-* [GitHub Pages](https://pages.github.com)
-* [Font Awesome](https://fontawesome.com)
-* [React Icons](https://react-icons.github.io/react-icons/search)
+# Agent ports
+ORCHESTRATOR_PORT=8000
+EMAIL_AGENT_PORT=8001
+```
+For Gmail credentials, follow the [Gmail OAuth2 setup guide](https://developers.google.com/gmail/api/quickstart/python).
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 

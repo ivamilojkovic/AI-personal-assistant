@@ -55,7 +55,7 @@ async def test_write_email_no_auth():
                 'parts': [
                     {
                         'kind': 'text',
-                        'text': 'Send an email to iva97.ja@gmail.com with subject "Test" and body "Hello from A2A client"'
+                        'text': 'Send an email to client@gmail.com with subject "Test" and body "Hello from A2A client"'
                     }
                 ],
                 'messageId': uuid4().hex,
@@ -63,7 +63,7 @@ async def test_write_email_no_auth():
             'metadata': {
                 'skill_id': 'write_email',
                 'input_params': {
-                    'to': 'iva97.ja@gmail.com',
+                    'to': 'client@gmail.com',
                     'subject': 'Test Email from A2A Client',
                     'text': 'Hello from A2A client',
                     'tone': 'professional',
@@ -122,7 +122,7 @@ async def test_write_email_with_generation():
             'metadata': {
                 'skill_id': 'write_email',
                 'input_params': {
-                    'to': 'iva97.ja@gmail.com',
+                    'to': 'client@gmail.com',
                     'subject': 'Project Completion',
                     'text': 'Tell the team that the project is 95% complete, we finished all core features, and are now doing final testing',
                     'tone': 'professional',
