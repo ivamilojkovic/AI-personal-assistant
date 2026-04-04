@@ -12,8 +12,11 @@ wheels/
 
 # Secret files
 credentials.json
-token.json
+token*
 .env
 
 # Additional repo (mcp-gmail)
-.mcp-gmail/
+mcp-gmail/
+
+# Data files
+subscriptions.json

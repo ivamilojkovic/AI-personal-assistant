@@ -5,9 +5,11 @@ from a2a.server.request_handlers import DefaultRequestHandler
 from a2a.server.tasks import InMemoryTaskStore
 
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from email_assistant.a2a.executor import EmailAgentExecutor
+from email_assistant.api.subscriptions import router as subscriptions_router
 from .cards import public_agent_card, extended_agent_card
 
 from email_assistant.core.logger import Logger
@@ -19,6 +21,16 @@ app = FastAPI(
     description="A2A protocol server for AI email assistant",
     version="1.0.0"
 )
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(subscriptions_router)
 
 def is_authenticated(request: Request) -> bool:
     """
@@ -107,6 +119,6 @@ if __name__ == "__main__":
     uvicorn.run(
         app,
         host="127.0.0.1",
-        port=9001,
+        port=8002,
         log_level="info"
     )

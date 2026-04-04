@@ -7,7 +7,7 @@
 set -e
 
 # 1. Variables
-REPO_URL="https://github.com/jeremyjordan/mcp-gmail.git"
+REPO_URL="https://github.com/ivamilojkovic/mcp-gmail.git"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$SCRIPT_DIR/mcp-gmail"
 

@@ -1,276 +1,107 @@
 <div align="center">
   <h1>AI Personal Assistant</h1>
-  <p>A modular AI assistant that manages emails and bookings using natural language.</p>
+  <p>A modular AI assistant that manages emails using natural language — built on A2A and MCP open protocols.</p>
   <p>
     <img src="https://img.shields.io/badge/Python-3.13+-3776AB?style=for-the-badge&logo=python&logoColor=white"/>
     <img src="https://img.shields.io/badge/Status-Active-00C851?style=for-the-badge"/>
   </p>
   <p>
     <img src="https://img.shields.io/badge/Email_Agent-✅_Ready-00C851?style=flat-square"/>
+    <img src="https://img.shields.io/badge/Subscription_Manager-✅_Ready-00C851?style=flat-square"/>
     <img src="https://img.shields.io/badge/Booking_Agent-🚧_Coming_Soon-FFA500?style=flat-square"/>
-    <img src="https://img.shields.io/badge/Calendar_Agent-📋_Planned-lightgrey?style=flat-square"/>
   </p>
 </div>
 
-<!-- TABLE OF CONTENTS -->
-<details>
-  <summary>Table of Contents</summary>
-  <ol>
-    <li>
-      <a href="#overview">Overview</a>
-      <ul>
-        <li><a href="#built-with">Built With</a></li>
-        <li><a href="#example-flow">Example Flow</a></li>
-        <li><a href="#architecture">Architecture Layers</a></li>
-      </ul>
-    </li>
-    <li><a href="#protocols">Protocols Deep Dive</a></li>
-    <li>
-      <a href="#getting-started">Getting Started</a>
-      <ul>
-        <li><a href="#prerequisites">Prerequisites</a></li>
-        <li><a href="#installation">Installation</a></li>
-      </ul>
-    </li>
-  </ol>
-</details>
+---
 
-## Overview
+## Table of Contents
 
-A modular AI personal assistant system that uses natural language to manage your emails, bookings, and more. Built with agent orchestration technologies including Model Context Protocol (MCP), Agent-to-Agent (A2A) protocol, and LangGraph workflows. The AI Personal Assistant coordinates specialized AI assistants to help you:
+1. [Features](#features)
+2. [Architecture](#architecture)
+3. [Tech Stack](#tech-stack)
+4. [Getting Started](#getting-started)
+   - [Prerequisites](#prerequisites)
+   - [Gmail OAuth Setup](#gmail-oauth-setup)
+   - [Installation](#installation)
+   - [Configuration](#configuration)
+   - [Running the System](#running-the-system)
+5. [Protocols Deep Dive](#protocols-deep-dive)
+   - [A2A Protocol](#agent-to-agent-protocol-a2a)
+   - [MCP](#model-context-protocol-mcp)
 
-  * Email Management - Draft, send, and classify emails with AI
-  * Booking Management (coming soon) - Manage accommodations and reservations
-  * Smart Orchestration - Intelligent routing to the right assistant
-  * Seamless Integration - All agents work together via A2A protocol
+---
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
+## Features
+
+### Email Assistant
+- **Draft & send emails** — AI-generated drafts with tone control, or direct send
+- **Batch classify emails** — categorize inbox emails in parallel using LLM
+- **Natural language interface** — "Write a professional email to client@example.com about the project update"
+
+### Subscription Manager
+- **Auto-detect subscriptions** — scans your inbox using only From + Subject (no body reading), classifies with LLM
+- **Auto-unsubscribe** — one-click RFC 8058 unsubscribe for supported senders; GET-based unsubscribe for others
+- **Manual unsubscribe** — direct "View in Gmail →" link for senders without machine-readable unsubscribe headers
+- **Confidence scoring** — shows how likely an email is a subscription (0–100%) for ambiguous senders
+- **Email categorization** — moves emails from unsubscribed senders to Gmail's Promotions tab automatically
+- **Live polling** — detects new subscriptions every 5 minutes in the background
+
+---
+
+## Architecture
+
+```
+UI (React/Vite, :3000)
+        │  A2A
+        ▼
+Orchestrator (:9010)          ← parses intent, routes to agents
+        │  A2A
+        ▼
+Email Assistant (:8002)       ← LangGraph workflows (write, classify, subscriptions)
+        │  MCP (stdio)
+        ▼
+Gmail MCP Server              ← wraps Gmail API, exposes tools
+        │
+        ▼
+Gmail API
+```
+
+<div align="center">
+  <img src="./images/ui_landing_page.png" alt="AI Personal Assistant UI" width="80%"/>
+  <br/><br/>
+  <a href="./images/architecture.png">
+    <img src="./images/architecture.png" alt="architecture image" width="60%"/>
+  </a>
+  <br/>
+  <em>Figure 1 — System architecture overview</em>
+  <br/><br/>
+  <a href="./images/email_graphs.png">
+    <img src="./images/email_graphs.png" alt="email graphs" width="60%"/>
+  </a>
+  <br/>
+  <em>Figure 2 — Email LangGraph workflows (writing and classifying)</em>
+</div>
 
 ### Example Flow
 
 ```
 User: "Write a professional email to client@example.com about the project update"
   ↓
-Orchestrator: 
+Orchestrator:
   - Parses intent → "write_email"
   - Extracts parameters → {to, subject, tone, text}
-  - Routes to Email Agent
+  - Routes to Email Agent via A2A
   ↓
 Email Agent:
-  - Generates professional email using AI
-  - Returns draft
+  - Runs LangGraph write_email workflow
+  - Calls Gmail MCP tool to send
   ↓
-User: Receives AI-generated email draft ✅
+User: Receives confirmation ✅
 ```
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-### Architecture Layers
-
-#### Layer 1: User Interface
-The entry point where users express their needs in natural language. No special syntax or commands required, just natural conversation like "Write an email to client@example.com about the project update." 
-<div align="center">
-  <img src="./images/ui_landing_page.png" alt="AI Personal Assistant UI" width="80%"/>
-  <br/><br/>
-</div>
-
-#### Layer 2: Orchestrator (Coordination Layer)
-The intelligent coordination hub that processes user requests and delegates to the appropriate specialist. Built using LangGraph for stateful workflow orchestration.
-Components:
-
-* Intent Parser
-    Understands natural language using OpenAI GPT-4
-    Extracts structured parameters from unstructured text
-    Determines confidence level for the interpretation
-    Example: "Write an email to client@example.com" → {intent: "write_email", to: "client@example.com"}
-
-* Agent Router
-    Maps intents to the appropriate specialized agent
-    Validates that all required parameters are present
-    Handles missing information by requesting clarification
-    Maintains conversation context for multi-turn interactions
-
-* Agent Client (Generic A2A)
-    Implements A2A protocol for agent-to-agent communication
-    Discovers agent capabilities via agent cards
-    Calls appropriate skills on target agents
-    Handles responses and error conditions
-
-#### Layer 3: Specialized Assistants (Execution Layer)
-Domain-specific AI agents that perform actual work using their specialized knowledge and tools.
-
-<div align="center">
-  <a href="./images/architecture.png">
-    <img src="./images/architecture.png" alt="architecture image" width="60%"/>
-  </a>
-  <br/>
-  <em>Figure 1 — System architecture overview</em>
-</div>
-
-#### Email Assistant 
-
-* Connected via A2A protocol for communication with orchestrator
-* Uses MCP for Gmail integration (compose, send, search, label)
-* Implements two LangGraph workflows:
-
-    1. Email writing workflow (draft generation vs. direct send)
-    2. Email classification workflow (single vs. batch processing)
-
-        Key Features:
-        * Parallel Processing: Batch mode classifies multiple emails concurrently
-        * MCP Integration: Direct Gmail API access via MCP tools
-        * AI Classification: LLM analyzes email content for categorization
 
 ---
 
-### Protocols Deep Dive
-
-This project is built on two emerging open standards for AI agent systems: **A2A** for agent-to-agent communication, and **MCP** for agent-to-tool communication. Together they form the backbone of the entire assistant architecture.
-
----
-
-#### Agent-to-Agent Protocol (A2A)
-
-##### What is A2A?
-
-The [Agent-to-Agent (A2A) protocol](https://a2a-protocol.org/latest/) is an open standard that defines how independent AI agents discover, communicate with, and delegate tasks to each other over HTTP. Before A2A, each project invented its own way for agents to talk. A2A standardizes this layer, much like HTTP standardized web communication.
-
-The core ideas behind A2A are:
-
-- **Agent Cards** — Every A2A-compliant agent publishes a machine-readable JSON descriptor (its "agent card") at a well-known URL (typically `/.well-known/agent.json`). This card declares the agent's name, description, capabilities, supported input/output formats, and the skills it can perform. Any other agent can fetch this card to discover what the agent can do — no hardcoding required.
-- **Skills** — Discrete, named capabilities that an agent exposes (e.g., `write_email`, `classify_email`). Each skill has a defined input schema and output schema.
-- **Tasks** — The unit of work in A2A. A client agent sends a Task to a server agent, which processes it and responds. Tasks can be synchronous (immediate response) or asynchronous (the client polls or receives a webhook).
-- **Transport** — A2A runs over plain HTTP/JSON, making it firewall-friendly and easy to integrate with any infrastructure. Streaming responses are supported via Server-Sent Events (SSE).
-
-```
-Agent Card (/.well-known/agent.json)
-{
-  "name": "Email Assistant",
-  "description": "Handles email drafting and classification",
-  "skills": [
-    {
-      "id": "write_email",
-      "name": "Write Email",
-      "description": "Drafts or sends an email",
-      "inputModes": ["text"],
-      "outputModes": ["text"]
-    },
-    {
-      "id": "classify_email",
-      "name": "Classify Email",
-      "description": "Categorizes one or more emails",
-      "inputModes": ["text"],
-      "outputModes": ["text"]
-    }
-  ]
-}
-```
-
-##### How A2A is used here
-
-In this project, A2A is the communication backbone between the **Orchestrator** and every **Specialist Agent**.
-
-```
-Orchestrator (A2A Client)                 Email Agent (A2A Server)
-       │                                           │
-       │  1. GET /.well-known/agent.json           │
-       │ ──────────────────────────────────────►   │
-       │  ◄──────────────────────────────────────  │
-       │       Agent Card (skills, schemas)        │
-       │                                           │
-       │  2. POST /tasks/send                      │
-       │  { skill: "write_email",                  │
-       │    params: { to, subject, body, tone } }  │
-       │ ──────────────────────────────────────►   │
-       │                                           │
-       │  3. Response (streamed via SSE)           │
-       │  ◄──────────────────────────────────────  │
-       │       { draft: "Dear client, ..." }       │
-```
-
-Concretely:
-
-- The **Orchestrator** acts as a **generic A2A client**. After parsing user intent, it looks up which agent handles the identified skill, fetches that agent's card if not already cached, and dispatches a Task with the extracted parameters.
-- The **Email Agent** acts as an **A2A server**, implemented with the A2A Python SDK. It registers its skills (`write_email`, `classify_email`) and their schemas at startup. When a Task arrives, the SDK routes it to the appropriate LangGraph workflow.
-- Because the Orchestrator uses the A2A protocol generically (not hardcoded to the Email Agent), **adding a new specialist agent** (e.g., a Booking Agent) requires only registering its URL — no changes to the Orchestrator code.
-
----
-
-#### Model Context Protocol (MCP)
-
-##### What is MCP?
-
-The [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) is an open standard that defines how AI models and agents interact with external tools, data sources, and services. Think of it as a universal adapter: instead of every agent writing custom integration code for every service (Gmail API, Slack API, databases, etc.), MCP defines a single interface that any compliant tool server can implement.
-
-MCP operates on a **client-server model**:
-
-- **MCP Server** — A lightweight process that wraps an external service and exposes its capabilities as a list of callable **tools** with defined input/output schemas. For example, an MCP server for Gmail might expose tools like `gmail_send_message`, `gmail_search_messages`, `gmail_create_label`, etc.
-- **MCP Client** — The AI agent that connects to one or more MCP servers, discovers their tools, and calls them as needed during task execution.
-- **Tool Discovery** — At connection time, the MCP client asks the server to list all available tools. The agent's LLM can then decide which tools to call and with what arguments, just as it would with native function-calling.
-- **Transport** — MCP supports two transports: `stdio` (local subprocess, for development) and `SSE` over HTTP (for remote/production servers).
-
-```
-MCP Tool Schema Example (Gmail Send)
-{
-  "name": "gmail_send_message",
-  "description": "Sends an email via Gmail",
-  "inputSchema": {
-    "type": "object",
-    "properties": {
-      "to":      { "type": "string", "description": "Recipient email" },
-      "subject": { "type": "string" },
-      "body":    { "type": "string" }
-    },
-    "required": ["to", "subject", "body"]
-  }
-}
-```
-
-##### How MCP is used here
-
-In this project, MCP is the integration layer between the **Email Agent** and **Gmail**. The Email Agent does not call the Gmail REST API directly — instead it connects to a Gmail MCP server which exposes Gmail capabilities as tools.
-
-```
-Email Agent (MCP Client)                  Gmail MCP Server
-       │                                         │
-       │  1. Connect + list tools                │
-       │ ─────────────────────────────────────►  │
-       │  ◄───────────────────────────────────── │
-       │    [gmail_send, gmail_search, ...]      │
-       │                                         │
-       │  2. LangGraph workflow runs             │
-       │     LLM decides: call gmail_send_message│
-       │ ─────────────────────────────────────►  │
-       │    { to, subject, body }                │
-       │                                         │
-       │  3. MCP Server calls Gmail API          │
-       │     and returns result                  │
-       │  ◄───────────────────────────────────── │
-       │    { messageId: "abc123", status: "ok" }│
-```
-
-Concretely, the Email Agent's LangGraph workflows use MCP in two places:
-
-| Workflow | MCP Tools Used |
-|---|---|
-| **Email Writing** | `gmail_send_message` (direct send mode) or returns draft only |
-| **Email Classification** | `gmail_search_messages`, `gmail_list_labels`, `gmail_create_label` |
-
-The key benefit: if the project were to support Outlook instead of Gmail in the future, only the MCP server would need to be swapped — the Email Agent's LangGraph logic stays completely unchanged.
-
----
-
-<br/>
-<div align="center">
-  <a href="./images/email_graphs.png">
-    <img src="./images/email_graphs.png" alt="email graphs image" width="60%"/>
-  </a>
-  <br/>
-  <em>Figure 2 — Email graphs (writing and classifying, respectively)</em>
-</div>
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-### Built With
+## Tech Stack
 
 [![Python][Python]][Python-url]
 [![LangChain][LangChain]][LangChain-url]
@@ -281,106 +112,206 @@ The key benefit: if the project were to support Outlook instead of Gmail in the 
 [![FastAPI][FastAPI]][FastAPI-url]
 [![Pydantic][Pydantic]][Pydantic-url]
 
-<table align="center">
-  <thead>
-    <tr>
-      <th>Layer</th>
-      <th>Technology</th>
-      <th>Purpose</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><strong>Orchestrator</strong></td>
-      <td>LangGraph</td>
-      <td>Workflow orchestration</td>
-    </tr>
-    <tr>
-      <td></td>
-      <td>OpenAI GPT-4</td>
-      <td>Intent parsing</td>
-    </tr>
-    <tr>
-      <td></td>
-      <td>A2A SDK</td>
-      <td>Agent communication</td>
-    </tr>
-    <tr>
-      <td></td>
-      <td>FastAPI</td>
-      <td>HTTP server</td>
-    </tr>
-    <tr>
-      <td><strong>Email Assistant</strong></td>
-      <td>LangGraph</td>
-      <td>Workflow orchestration</td>
-    </tr>
-    <tr>
-      <td></td>
-      <td>OpenAI GPT-4</td>
-      <td>Email generation</td>
-    </tr>
-    <tr>
-      <td></td>
-      <td>A2A SDK</td>
-      <td>Server implementation</td>
-    </tr>
-    <tr>
-      <td></td>
-      <td>MCP</td>
-      <td>Gmail tool integration</td>
-    </tr>
-    <tr>
-      <td><strong>Communication</strong></td>
-      <td>A2A Protocol</td>
-      <td>Inter-agent messaging</td>
-    </tr>
-    <tr>
-      <td></td>
-      <td>MCP</td>
-      <td>Tool integration</td>
-    </tr>
-    <tr>
-      <td></td>
-      <td>HTTP/JSON</td>
-      <td>Transport layer</td>
-    </tr>
-  </tbody>
-</table>
+| Component | Technology | Purpose |
+|-----------|------------|---------|
+| **Orchestrator** | LangGraph + FastAPI | Stateful intent parsing and agent routing |
+| | OpenAI GPT-4.1-mini | Natural language intent extraction |
+| | A2A SDK | Generic agent client |
+| **Email Assistant** | LangGraph + FastAPI | Write, classify, and subscription workflows |
+| | OpenAI GPT-4.1-mini | Email generation and subscription classification |
+| | A2A SDK | Agent server implementation |
+| | MCP (fastmcp) | Gmail tool integration via stdio subprocess |
+| **Gmail MCP Server** | fastmcp | Wraps Gmail API: send, search, label, metadata |
+| **UI** | React + Vite | Chat interface + subscription management tab |
+| | @a2a-js/sdk | Communicates directly with Orchestrator |
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
+---
 
 ## Getting Started
 
 ### Prerequisites
 
-* Python 3.13 or higher
-* OpenAI API key
-* Gmail account (for email features)
+- Python 3.13+
+- Node.js 18+
+- [uv](https://docs.astral.sh/uv/) (for Gmail MCP server)
+- conda (for email assistant and orchestrator environments)
+- OpenAI API key
+- Google account with Gmail API enabled
+
+### Gmail OAuth Setup
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create a project → enable **Gmail API**
+3. Create OAuth 2.0 credentials (Desktop app) → download as `credentials.json`
+4. Place `credentials.json` in `email-assistant/`
+5. Add your Gmail address as a **test user** under OAuth consent screen → Test users
 
 ### Installation
 
+```bash
+git clone https://github.com/ivamilojkovic/ai-personal-assistant.git
+cd ai-personal-assistant
+```
+
+**Orchestrator**
+```bash
+cd orchestrator
+conda create -n venv-orchestrator python=3.13
+conda activate venv-orchestrator
+pip install -e .
+```
+
+**Email Assistant**
+```bash
+cd email-assistant
+conda create -n venv-email-assistant python=3.13
+conda activate venv-email-assistant
+pip install -e .
+```
+
+**UI**
+```bash
+cd ui
+npm install
+```
+
 ### Configuration
-Copy the example environment file and fill in your credentials:
+
+**`orchestrator/.env`**
+```env
+OPENAI_API_KEY=your_key_here
+ORCHESTRATOR_PORT=9010
+EMAIL_ASSISTANT_BASE_URL=http://localhost:8002
+LLM_MODEL=gpt-4.1-mini
 ```
-# .env.example
 
-# OpenAI
-OPENAI_API_KEY=your_openai_api_key_here
-
-# Gmail / MCP
-GMAIL_CLIENT_ID=your_gmail_client_id
-GMAIL_CLIENT_SECRET=your_gmail_client_secret
-GMAIL_REFRESH_TOKEN=your_gmail_refresh_token
-
-# Agent ports
-ORCHESTRATOR_PORT=8000
-EMAIL_AGENT_PORT=8001
+**`email-assistant/.env`**
+```env
+OPENAI_API_KEY=your_key_here
+PATH_GMAIL_MCP_SERVER_SCRIPT=/path/to/email-assistant/run_gmail_mcp_server_uv.sh
+SUBSCRIPTIONS_FILE=/path/to/email-assistant/subscriptions.json
 ```
-For Gmail credentials, follow the [Gmail OAuth2 setup guide](https://developers.google.com/gmail/api/quickstart/python).
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
+**`ui/.env`**
+```env
+VITE_ORCHESTRATOR_URL=http://localhost:9010
+VITE_EMAIL_ASSISTANT_URL=http://localhost:8002
+```
 
+### Running the System
+
+All services must run simultaneously. Start them in order:
+
+**1. Authenticate Gmail** (first time only)
+```bash
+cd email-assistant/mcp-gmail
+uv run python scripts/test_gmail_setup.py
+# Follow the browser OAuth flow
+```
+
+**2. Email Assistant**
+```bash
+cd email-assistant
+conda activate venv-email-assistant
+python -m email_assistant.a2a.server
+# Starts on :8002
+```
+
+**3. Orchestrator**
+```bash
+cd orchestrator
+conda activate venv-orchestrator
+python -m orchestrator.main
+# Starts on :9010
+```
+
+**4. UI**
+```bash
+cd ui
+npm run dev
+# Opens on :3000
+```
+
+> The Gmail MCP server is spawned automatically as a subprocess by the Email Assistant — no separate process needed.
+
+---
+
+## Protocols Deep Dive
+
+This project is built on two open standards for AI agent systems: **A2A** for agent-to-agent communication, and **MCP** for agent-to-tool communication.
+
+---
+
+### Agent-to-Agent Protocol (A2A)
+
+The [A2A protocol](https://a2a-protocol.org/latest/) is an open standard for how independent AI agents discover, communicate with, and delegate tasks to each other over HTTP.
+
+**Core concepts:**
+
+- **Agent Cards** — Every A2A agent publishes a JSON descriptor at `/.well-known/agent.json` listing its name, skills, and input/output schemas. Any agent can fetch this card to discover capabilities without hardcoding.
+- **Skills** — Named capabilities (e.g. `write_email`, `classify_email`). Each has a defined schema.
+- **Tasks** — The unit of work. A client sends a Task to a server, which processes and responds synchronously or asynchronously.
+
+```
+Orchestrator (A2A Client)              Email Agent (A2A Server)
+       │                                         │
+       │  GET /.well-known/agent.json            │
+       │ ──────────────────────────────────────► │
+       │  ◄────────────────────────────────────  │
+       │       Agent Card (skills, schemas)      │
+       │                                         │
+       │  POST /tasks/send                       │
+       │  { skill: "write_email", params: {...} }│
+       │ ──────────────────────────────────────► │
+       │  ◄────────────────────────────────────  │
+       │       { draft: "Dear client, ..." }     │
+```
+
+Because the Orchestrator uses A2A generically, adding a new specialist agent (e.g. Booking Agent) only requires registering its URL in `agent_registry.py` — no Orchestrator code changes.
+
+---
+
+### Model Context Protocol (MCP)
+
+The [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) is an open standard for how AI agents interact with external tools and services via a unified interface.
+
+**Core concepts:**
+
+- **MCP Server** — Wraps an external service (e.g. Gmail) and exposes its capabilities as callable **tools** with defined schemas.
+- **MCP Client** — The AI agent that connects to the server, discovers tools, and calls them during task execution.
+- **Transport** — This project uses `stdio` (local subprocess), where the Email Assistant spawns the Gmail MCP server per request.
+
+```
+Email Agent (MCP Client)             Gmail MCP Server
+       │                                     │
+       │  Connect + list_tools               │
+       │ ──────────────────────────────────► │
+       │  ◄────────────────────────────────  │
+       │    [send_email, search_emails, ...]  │
+       │                                     │
+       │  call_tool("send_email", {...})      │
+       │ ──────────────────────────────────► │
+       │                                     │  → Gmail API
+       │  ◄────────────────────────────────  │
+       │    { messageId: "abc123" }          │
+```
+
+**Gmail MCP tools exposed:**
+
+| Tool | Purpose |
+|------|---------|
+| `send_email` | Send an email |
+| `search_emails` | Search by date, sender, label |
+| `get_email_metadata` | Get From, Subject, unsubscribe headers (no body) |
+| `get_emails` | Get full email content |
+| `get_available_labels` | List Gmail labels |
+| `add_label_to_message` | Apply a label |
+| `categorize_emails_from_sender` | Move all emails from a sender to a Gmail category tab |
+| `mark_message_read` | Remove UNREAD label |
+
+The key benefit: swapping Gmail for Outlook in the future only requires replacing the MCP server — the Email Agent workflows stay unchanged.
+
+---
 
 <!-- MARKDOWN LINKS & IMAGES -->
 [Python]: https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white

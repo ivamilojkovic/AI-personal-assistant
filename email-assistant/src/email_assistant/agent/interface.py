@@ -1,13 +1,17 @@
+import json
+
 # from agent.graphs.write_email_graph import create_email_graph
 from email_assistant.agent.graphs.write_email_graph import create_email_graph
 from email_assistant.agent.graphs.cls_email_graph import create_cls_email_graph
+from email_assistant.agent.graphs.subscription_graph import create_subscription_graph
 from email_assistant.core.schemas import (
-    EmailRequest, 
-    EmailResponse, 
-    EmailState, 
+    EmailRequest,
+    EmailResponse,
+    EmailState,
     EmailClassificationState,
     ClassificationRequest,
-    ClassificationResponse
+    ClassificationResponse,
+    SubscriptionScanState,
 )
 
 from fastmcp.client.transports import StdioTransport
@@ -39,6 +43,7 @@ class EmailAssistant:
         """Initialize the email assistant with the graph workflow"""
         self.graph_writer = create_email_graph()
         self.graph_classifier = create_cls_email_graph()
+        self.graph_subscription = create_subscription_graph()
 
         # Initialize MCP client once
         self.transport = StdioTransport(
@@ -273,6 +278,81 @@ class EmailAssistant:
             except Exception as e:
                 logger.warning(f"Error closing MCP client: {e}")
     
+    async def scan_subscriptions(
+        self,
+        after_date: datetime,
+        max_results: int = 100,
+    ) -> list:
+        """Scan emails from after_date and detect new subscriptions.
+
+        Returns list of newly detected subscription dicts.
+        """
+        mcp_client = await self._get_mcp_client()
+        try:
+            initial_state = SubscriptionScanState(
+                after_date=after_date,
+                max_results=max_results,
+                mcp=mcp_client,
+            )
+            result = await self.graph_subscription.ainvoke(initial_state.model_dump())
+            return result.get("new_subscriptions", [])
+        except Exception as e:
+            logger.error(f"scan_subscriptions failed: {e}", exc_info=True)
+            return []
+        finally:
+            try:
+                await mcp_client.__aexit__(None, None, None)
+            except Exception as e:
+                logger.warning(f"Error closing MCP client: {e}")
+
+    async def categorize_emails_from_sender(
+        self,
+        sender_email: str,
+        category_label_id: str = "CATEGORY_PROMOTIONS",
+    ) -> int:
+        """Move all emails from sender into a Gmail category tab. Returns count moved."""
+        mcp_client = await self._get_mcp_client()
+        try:
+            result = await mcp_client.call_tool(
+                "categorize_emails_from_sender",
+                {"sender_email": sender_email, "category_label_id": category_label_id},
+            )
+            if hasattr(result, "content") and result.content:
+                raw = result.content[0].text
+                parsed = json.loads(raw) if isinstance(raw, str) else raw
+                count = parsed.get("categorized_count", 0)
+                logger.info(f"Categorized {count} emails from {sender_email} into '{category_label_id}'")
+                return count
+            return 0
+        except Exception as e:
+            logger.error(f"categorize_emails_from_sender failed for {sender_email}: {e}", exc_info=True)
+            return 0
+        finally:
+            try:
+                await mcp_client.__aexit__(None, None, None)
+            except Exception as e:
+                logger.warning(f"Error closing MCP client: {e}")
+
+    async def poll_subscriptions(self, max_results: int = 50) -> list:
+        """Check for new subscription emails since the last poll timestamp.
+
+        Returns list of newly detected subscription dicts.
+        """
+        from email_assistant.services.subscription_service import SubscriptionService
+        import os
+
+        service = SubscriptionService(os.getenv("SUBSCRIPTIONS_FILE", "subscriptions.json"))
+        last_poll = service.get_last_poll()
+
+        if last_poll is None:
+            # No prior poll — scan last 7 days as a bootstrap
+            after_date = datetime.now().replace(tzinfo=None) - timedelta(days=7)
+        else:
+            after_date = last_poll.replace(tzinfo=None)
+
+        return await self.scan_subscriptions(after_date=after_date, max_results=max_results)
+
+
 # Example usage and testing
 if __name__ == "__main__":
 

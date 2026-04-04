@@ -152,3 +152,22 @@ class ClassificationResponse(BaseModel):
     classification_results: Optional[List[Dict[str, Any]]] = None
     labeled_count: Optional[int] = None
     error: Optional[str] = None
+
+
+class SubscriptionScanState(BaseModel):
+    """State for subscription detection graph."""
+    after_date: datetime
+    max_results: int = 100
+
+    # MCP client
+    mcp: Any = None
+
+    # Graph state
+    email_ids: List[str] = Field(default_factory=list)
+    metadata: List[Dict[str, Any]] = Field(default_factory=list)
+    new_subscriptions: List[Dict[str, Any]] = Field(default_factory=list)
+    status: str = "initialized"
+    error: Optional[str] = None
+
+    class Config:
+        arbitrary_types_allowed = True

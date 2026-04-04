@@ -1,0 +1,21 @@
+email-assistant/mcp-gmail/
+.claude
+CLAUDE.md
+
+# Python
+__pycache__/
+*.py[oc]
+*.egg-info/
+build/
+dist/
+.venv/
+*.env
+
+# UI
+ui/node_modules/
+ui/dist/
+ui/.env
+ui/package-lock.json
+
+# OS
+.DS_Store

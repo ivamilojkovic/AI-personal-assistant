@@ -1,7 +1,9 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { ClientFactory } from '@a2a-js/sdk/client';
 import { v4 as uuidv4 } from 'uuid';
 import './App.css';
+
+const EMAIL_ASSISTANT_URL = import.meta.env.VITE_EMAIL_ASSISTANT_URL || 'http://localhost:9001';
 
 function App() {
   const [conversations, setConversations] = useState([]);
@@ -11,6 +13,12 @@ function App() {
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const clientRef = useRef(null);
+
+  // Subscriptions tab state
+  const [activeTab, setActiveTab] = useState('chat');
+  const [subscriptions, setSubscriptions] = useState([]);
+  const [isScanning, setIsScanning] = useState(false);
+  const [unseenSubCount, setUnseenSubCount] = useState(0);
 
   // Initialize A2A client on mount
   useEffect(() => {
@@ -43,6 +51,100 @@ function App() {
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
+
+  // ------------------------------------------------------------------ //
+  // Subscription helpers                                                //
+  // ------------------------------------------------------------------ //
+
+  const loadSubscriptions = useCallback(async () => {
+    try {
+      const res = await fetch(`${EMAIL_ASSISTANT_URL}/subscriptions`);
+      const data = await res.json();
+      setSubscriptions(data.subscriptions || []);
+    } catch (e) {
+      console.error('Failed to load subscriptions', e);
+    }
+  }, []);
+
+  const pollSubscriptions = useCallback(async () => {
+    try {
+      const res = await fetch(`${EMAIL_ASSISTANT_URL}/subscriptions/poll`);
+      const data = await res.json();
+      setSubscriptions(data.all_subscriptions || []);
+      if (activeTab !== 'subscriptions' && data.new_count > 0) {
+        setUnseenSubCount(prev => prev + data.new_count);
+      }
+    } catch (e) {
+      console.error('Poll failed', e);
+    }
+  }, [activeTab]);
+
+  const scanSubscriptions = async (days) => {
+    setIsScanning(true);
+    try {
+      const res = await fetch(`${EMAIL_ASSISTANT_URL}/subscriptions/scan`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ days }),
+      });
+      const data = await res.json();
+      setSubscriptions(data.all_subscriptions || []);
+    } catch (e) {
+      console.error('Scan failed', e);
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
+  const unsubscribeItem = async (id) => {
+    try {
+      const res = await fetch(`${EMAIL_ASSISTANT_URL}/subscriptions/${id}/unsubscribe`, {
+        method: 'POST',
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        alert(err.detail || 'Unsubscribe failed. You may need to do it manually.');
+        setSubscriptions(prev =>
+          prev.map(s => s.id === id ? { ...s, unsub_failed: true } : s)
+        );
+        return;
+      }
+      const data = await res.json();
+      setSubscriptions(prev =>
+        prev.map(s => s.id === id ? { ...s, status: 'unsubscribed', unsubscribed_at: data.subscription?.unsubscribed_at } : s)
+      );
+    } catch (e) {
+      console.error('Unsubscribe failed', e);
+    }
+  };
+
+  const keepItem = async (id) => {
+    try {
+      await fetch(`${EMAIL_ASSISTANT_URL}/subscriptions/${id}/keep`, { method: 'POST' });
+      setSubscriptions(prev =>
+        prev.map(s => s.id === id ? { ...s, status: 'kept' } : s)
+      );
+    } catch (e) {
+      console.error('Keep failed', e);
+    }
+  };
+
+  // Load subscriptions on mount and start polling every 5 min
+  useEffect(() => {
+    loadSubscriptions();
+    const interval = setInterval(pollSubscriptions, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // When switching to subscriptions tab, clear unseen badge and load fresh
+  useEffect(() => {
+    if (activeTab === 'subscriptions') {
+      setUnseenSubCount(0);
+      loadSubscriptions();
+    }
+  }, [activeTab]);
+
+  // ------------------------------------------------------------------ //
 
   const parseResponse = (text) => {
     // Extract skill name from response
@@ -235,15 +337,162 @@ function App() {
           </div>
         </header>
 
+        {/* Tab bar */}
+        <div className="tab-bar">
+          <button
+            className={`tab-btn ${activeTab === 'chat' ? 'active' : ''}`}
+            onClick={() => setActiveTab('chat')}
+          >
+            Chat
+          </button>
+          <button
+            className={`tab-btn ${activeTab === 'subscriptions' ? 'active' : ''}`}
+            onClick={() => setActiveTab('subscriptions')}
+          >
+            Subscriptions
+            {unseenSubCount > 0 && (
+              <span className="tab-badge">{unseenSubCount}</span>
+            )}
+          </button>
+        </div>
+
         {/* Connection error banner */}
-        {clientError && (
+        {clientError && activeTab === 'chat' && (
           <div className="error-banner">
             ⚠️ {clientError}
           </div>
         )}
 
-        {/* Main content area */}
-        <div className="main-content">
+        {/* Subscriptions panel */}
+        {activeTab === 'subscriptions' && (
+          <div className="subscriptions-panel">
+            <div className="subs-header">
+              <div className="scan-buttons">
+                <button
+                  className="scan-btn"
+                  onClick={() => scanSubscriptions(7)}
+                  disabled={isScanning}
+                >
+                  {isScanning ? 'Scanning…' : 'Scan last 7 days'}
+                </button>
+                <button
+                  className="scan-btn"
+                  onClick={() => scanSubscriptions(30)}
+                  disabled={isScanning}
+                >
+                  {isScanning ? 'Scanning…' : 'Scan last 30 days'}
+                </button>
+              </div>
+              <span className="polling-indicator">↻ Live</span>
+            </div>
+
+            {(() => {
+              const pending = subscriptions.filter(s => s.status === 'pending');
+              const unsubscribed = subscriptions.filter(s => s.status === 'unsubscribed');
+              const kept = subscriptions.filter(s => s.status === 'kept');
+
+              return (
+                <>
+                  <div className="subs-section">
+                    <h3 className="subs-section-title">
+                      Pending ({pending.length})
+                    </h3>
+                    {pending.length === 0 && (
+                      <p className="subs-empty">No pending subscriptions. Run a scan to detect new ones.</p>
+                    )}
+                    {pending.map(sub => (
+                      <div key={sub.id} className={`sub-card ${sub.unsubscribe_path === 'auto' ? 'auto' : 'manual'}`}>
+                        <div className="sub-card-top">
+                          <div className="sub-info">
+                            <span className="sub-path-icon">
+                              {sub.unsubscribe_path === 'auto' ? '⚡' : '✋'}
+                            </span>
+                            <div>
+                              <div className="sub-name">{sub.sender_name || sub.sender_email}</div>
+                              <div className="sub-email">{sub.sender_email}</div>
+                            </div>
+                          </div>
+                          {sub.unsubscribe_path === 'manual' && (
+                            <div className="confidence-wrap">
+                              <span className="confidence-pct">{sub.confidence}%</span>
+                              <div className="confidence-bar">
+                                <div
+                                  className="confidence-fill"
+                                  style={{ width: `${sub.confidence}%` }}
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        <div className="sub-card-bottom">
+                          <span className="sub-last-received">
+                            Last received: {sub.last_received ? new Date(sub.last_received).toLocaleDateString() : '—'}
+                            {' · '}
+                            {sub.unsubscribe_path === 'auto'
+                              ? (sub.one_click ? 'one-click unsubscribe' : 'can auto-unsubscribe')
+                              : 'manual — unsubscribe in Gmail'}
+                          </span>
+                          <div className="sub-actions">
+                            {sub.unsubscribe_path === 'auto' && !sub.unsub_failed && (
+                              <button className="btn-unsub" onClick={() => unsubscribeItem(sub.id)}>
+                                Unsubscribe
+                              </button>
+                            )}
+                            {(sub.unsubscribe_path === 'manual' || sub.unsub_failed) && sub.message_id && (
+                              <a
+                                className="btn-view-gmail"
+                                href={`https://mail.google.com/mail/u/0/#all/${sub.message_id}`}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                View in Gmail →
+                              </a>
+                            )}
+                            <button className="btn-keep" onClick={() => keepItem(sub.id)}>
+                              Keep
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {unsubscribed.length > 0 && (
+                    <details className="subs-section unsubscribed-section">
+                      <summary className="subs-section-title">
+                        Unsubscribed ({unsubscribed.length})
+                      </summary>
+                      {unsubscribed.map(sub => (
+                        <div key={sub.id} className="unsubscribed-item">
+                          <span>✓ {sub.sender_name || sub.sender_email}</span>
+                          <span className="sub-date">
+                            {sub.unsubscribed_at ? new Date(sub.unsubscribed_at).toLocaleDateString() : '—'}
+                          </span>
+                        </div>
+                      ))}
+                    </details>
+                  )}
+
+                  {kept.length > 0 && (
+                    <details className="subs-section kept-section">
+                      <summary className="subs-section-title">
+                        Kept ({kept.length})
+                      </summary>
+                      {kept.map(sub => (
+                        <div key={sub.id} className="unsubscribed-item">
+                          <span>{sub.sender_name || sub.sender_email}</span>
+                        </div>
+                      ))}
+                    </details>
+                  )}
+                </>
+              );
+            })()}
+          </div>
+        )}
+
+        {/* Main content area (chat) */}
+        {activeTab === 'chat' && (<div className="main-content">
           {conversations.length === 0 ? (
             <div className="welcome-screen">
               <div className="welcome-icon">✨</div>
@@ -333,10 +582,10 @@ function App() {
               <div ref={messagesEndRef} />
             </div>
           )}
-        </div>
+        </div>)}
 
-        {/* Input area */}
-        <div className="input-container">
+        {/* Input area (chat only) */}
+        {activeTab === 'chat' && (<div className="input-container">
           <div className="input-wrapper">
             <textarea
               ref={inputRef}
@@ -361,7 +610,7 @@ function App() {
           <div className="input-hint">
             Press <kbd>Enter</kbd> to send • <kbd>Shift + Enter</kbd> for new line
           </div>
-        </div>
+        </div>)}
       </div>
     </div>
   );
